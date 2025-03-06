@@ -8,3 +8,7 @@ jupyter
 scikit-learn
 seaborn
 sqlitedict
+cupy>=12.0.0  # For GPU acceleration
+matplotlib>=3.7.0  # For performance visualization
+joblib>=1.3.0  # For parallel processing
+

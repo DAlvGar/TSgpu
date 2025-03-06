@@ -70,6 +70,126 @@ class FPEvaluator(Evaluator):
         return DataStructs.TanimotoSimilarity(self.ref_fp, rd_mol_fp)
 
 
+class GPUFPEvaluator(Evaluator):
+    """An evaluator class that calculates fingerprint Tanimoto similarities using GPU acceleration
+    """
+    def __init__(self, input_dict: dict, batch_size: int = 1000):
+        """Initialize the GPU-accelerated fingerprint evaluator
+        
+        Args:
+            input_dict: Dictionary containing query_smiles
+            batch_size: Size of batches for GPU processing
+        """
+        self.ref_smiles = input_dict["query_smiles"]
+        self.batch_size = batch_size
+        self.fpgen = rdFingerprintGenerator.GetMorganGenerator()
+        self.ref_mol = Chem.MolFromSmiles(self.ref_smiles)
+        
+        # Generate reference fingerprint and convert to GPU array
+        ref_fp = self.fpgen.GetFingerprint(self.ref_mol)
+        ref_fp_array = np.zeros((1, ref_fp.GetNumBits()), dtype=np.float32)
+        DataStructs.ConvertToNumpyArray(ref_fp, ref_fp_array[0])
+        self.ref_fp_gpu = cp.asarray(ref_fp_array)
+        
+        self.num_evaluations = 0
+        self._cached_fps = {}  # Cache for fingerprints
+        
+    @property
+    def counter(self):
+        return self.num_evaluations
+    
+    def _fp_to_array(self, fp) -> np.ndarray:
+        """Convert RDKit fingerprint to numpy array"""
+        arr = np.zeros(fp.GetNumBits(), dtype=np.float32)
+        DataStructs.ConvertToNumpyArray(fp, arr)
+        return arr
+    
+    def _calculate_tanimoto_gpu(self, fp_array: np.ndarray) -> float:
+        """Calculate Tanimoto similarity using GPU
+        
+        Args:
+            fp_array: Numpy array of fingerprint bits
+            
+        Returns:
+            Tanimoto similarity score
+        """
+        # Convert to GPU array
+        fp_gpu = cp.asarray(fp_array.reshape(1, -1))
+        
+        # Calculate Tanimoto similarity on GPU
+        intersection = cp.dot(self.ref_fp_gpu, fp_gpu.T)
+        sum_fps = cp.sum(self.ref_fp_gpu, axis=1)[:, None] + cp.sum(fp_gpu, axis=1)
+        union = sum_fps - intersection
+        
+        # Return similarity score
+        return float(cp.asnumpy(intersection / union)[0, 0])
+    
+    def evaluate(self, rd_mol_in: Chem.Mol) -> float:
+        """Evaluate Tanimoto similarity between input molecule and reference
+        
+        Args:
+            rd_mol_in: Input RDKit molecule
+            
+        Returns:
+            Tanimoto similarity score
+        """
+        self.num_evaluations += 1
+        
+        # Generate canonical SMILES for caching
+        smi = Chem.MolToSmiles(rd_mol_in, canonical=True)
+        
+        # Check cache first
+        if smi in self._cached_fps:
+            return self._cached_fps[smi]
+        
+        # Generate fingerprint and convert to array
+        mol_fp = self.fpgen.GetFingerprint(rd_mol_in)
+        fp_array = self._fp_to_array(mol_fp)
+        
+        # Calculate similarity
+        score = self._calculate_tanimoto_gpu(fp_array)
+        
+        # Cache the result
+        self._cached_fps[smi] = score
+        
+        return score
+    
+    def evaluate_batch(self, mols: List[Chem.Mol]) -> np.ndarray:
+        """Evaluate multiple molecules in batch for better GPU utilization
+        
+        Args:
+            mols: List of RDKit molecules
+            
+        Returns:
+            Array of Tanimoto similarity scores
+        """
+        self.num_evaluations += len(mols)
+        
+        # Process in batches
+        all_scores = []
+        for i in range(0, len(mols), self.batch_size):
+            batch = mols[i:i + self.batch_size]
+            
+            # Generate fingerprints for batch
+            fps = [self.fpgen.GetFingerprint(mol) for mol in batch]
+            
+            # Convert to array
+            fp_array = np.vstack([self._fp_to_array(fp) for fp in fps])
+            
+            # Convert to GPU array
+            fp_gpu = cp.asarray(fp_array)
+            
+            # Calculate similarities
+            intersection = cp.dot(self.ref_fp_gpu, fp_gpu.T)
+            sum_fps = cp.sum(self.ref_fp_gpu, axis=1)[:, None] + cp.sum(fp_gpu, axis=1)
+            union = sum_fps - intersection
+            scores = cp.asnumpy(intersection / union)[0]
+            
+            all_scores.extend(scores)
+        
+        return np.array(all_scores)
+
+
 class ROCSEvaluator(Evaluator):
     """An evaluator class that calculates a ROCS score to a reference molecule
     """

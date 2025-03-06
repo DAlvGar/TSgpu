@@ -97,3 +97,59 @@ set a minimum uncertainty > 0 so that the prior can be updated. Increasing this 
 decreasing it will lead to more exploitation. We recommend starting with ~10% of the range of the scoring function. If
 not set, a default of 0.1 is used.
 - `log_filename`: Optional. Log filename to save logs to. If not set, logging will be printed to stdout.
+
+# Reaction Graph Analysis
+
+This script creates a graph structure from reaction and synthon data, allowing visualization and analysis of the relationships between reactions and their building blocks.
+
+## Features
+
+- Load and parse reaction SMARTS and synthon SMILES data
+- Create a graph structure connecting reactions to their synthons
+- Visualize the complete graph or subsets focused on specific reactions
+- Export synthons grouped by their position in reactions
+
+## Requirements
+
+Install the required packages using:
+
+```bash
+pip install -r requirements.txt
+```
+
+## Usage
+
+1. Place your data files in the `data` directory:
+   - `2024-09_REAL_reactions_SMARTS.txt`: Reaction SMARTS file
+   - `2024-09_REAL_synthons.smi`: Synthon SMILES file
+
+2. Run the script:
+```bash
+python reaction_graph.py
+```
+
+By default, the script will:
+- Load the data files
+- Create a graph structure
+- Visualize a subset of example reactions
+- Export synthons by position for those reactions to the `output/example_synthons` directory
+
+## Customizing the Analysis
+
+To analyze specific reactions, modify the `example_reactions` list in the `main()` function:
+
+```python
+example_reactions = ['your_reaction_id_1', 'your_reaction_id_2']
+graph.visualize(example_reactions)
+graph.export_synthons_by_position(example_reactions, 'output/your_output_dir')
+```
+
+## Output Files
+
+For each analyzed reaction set, the script creates:
+- A visualization of the reaction-synthon graph
+- Separate files for synthons at each position (e.g., `position_1_synthons.smi`, `position_2_synthons.smi`, etc.)
+
+Each synthon file contains:
+- SMILES representation of the synthon
+- Synthon ID
