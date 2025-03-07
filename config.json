@@ -1,0 +1,17 @@
+{
+    "reaction_file": "reactions.csv",
+    "reagent_file_list": [
+        "reagents1.csv",
+        "reagents2.csv"
+    ],
+    "evaluator_class_name": "GPUFPEvaluator",
+    "evaluator_arg": {
+        "query_smiles": "C1CCCCC1"
+    },
+    "num_ts_iterations": 25,
+    "num_warmup_trials": 3,
+    "ts_mode": "maximize",
+    "use_gpu": true,
+    "log_filename": "thompson_sampling.log",
+    "output_file": "results.json"
+} 

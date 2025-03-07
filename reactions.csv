@@ -1,0 +1,5 @@
+[C:1][C:2]>>[C:1]C[C:2]	Alkene Addition
+[C:1]O>>[C:1]C	Alcohol Alkylation
+[C:1]C(=O)O>>[C:1]C(=O)Cl	Ester Chlorination
+[C:1]C(=O)Cl>>[C:1]C(=O)NH2	Amide Formation
+[C:1]C(=O)NH2>>[C:1]C(=O)N(C)C	N-Methylation 
