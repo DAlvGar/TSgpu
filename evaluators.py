@@ -4,6 +4,9 @@ from abc import ABC, abstractmethod
 import numpy as np
 from rdkit import Chem
 from rdkit.Chem import rdFingerprintGenerator
+import cupy as cp
+from typing import List
+
 
 import useful_rdkit_utils as uru
 
