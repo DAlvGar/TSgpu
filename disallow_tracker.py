@@ -184,10 +184,10 @@ class GPUDisallowTracker:
     To_Fill = None
 
     def __init__(self, reagent_counts: list[int]):
-        \"\"\"
+        """
         GPU-compatible version of DisallowTracker
         :param reagent_counts: A list of the number of reagents for each site of diversity in the reaction
-        \"\"\"
+        """
         # Store original counts as integers
         self._initial_reagent_counts = [int(x) for x in reagent_counts]
         # GPU array version for calculations
