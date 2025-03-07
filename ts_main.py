@@ -3,8 +3,10 @@
 import importlib
 import json
 import sys
+import traceback
 from datetime import timedelta
 from timeit import default_timer as timer
+
 
 import pandas as pd
 import numpy as np
@@ -223,6 +225,7 @@ def test_gpu_implementation():
                 
             except Exception as e:
                 logger.error(f"GPU implementation failed: {str(e)}")
+                traceback.print_exc()
                 results.append({
                     'config_name': config['name'],
                     'batch_size': batch_size,
@@ -285,6 +288,7 @@ def test_gpu_implementation():
                 
             except Exception as e:
                 logger.error(f"CPU implementation failed: {str(e)}")
+                traceback.print_exc()
                 results.append({
                     'config_name': config['name'],
                     'batch_size': batch_size,
