@@ -184,10 +184,10 @@ class GPUDisallowTracker:
     To_Fill = None
 
     def __init__(self, reagent_counts: list[int]):
-        \"\"\"
+        """
         GPU-compatible version of DisallowTracker
         :param reagent_counts: A list of the number of reagents for each site of diversity in the reaction
-        \"\"\"
+        """
         # Store original counts as integers
         self._initial_reagent_counts = [int(x) for x in reagent_counts]
         # GPU array version for calculations
@@ -207,12 +207,12 @@ class GPUDisallowTracker:
                            for count in self._initial_reagent_counts]
 
     def get_disallowed_selection_mask_batch(self, batch_size: int) -> List[cp.ndarray]:
-        \"\"\"Returns disallowed reagents for batch processing\"\"\"
+        """Returns disallowed reagents for batch processing"""
         batch_size = min(int(batch_size), self._max_batch_size)
         return [mask[:batch_size] for mask in self._batch_masks]
 
     def get_disallowed_selection_mask(self, current_selection: list[Union[int, None]]) -> cp.ndarray:
-        \"\"\"Returns disallowed reagents for single selection\"\"\"
+        """Returns disallowed reagents for single selection"""
         if len(current_selection) != len(self._initial_reagent_counts):
             raise ValueError(f"current_selection must match number of sites: {len(self._initial_reagent_counts)}")
         
@@ -250,7 +250,7 @@ class GPUDisallowTracker:
         return mask
 
     def update(self, selected: List[int]) -> None:
-        \"\"\"Update disallow masks with new selection\"\"\"
+        """Update disallow masks with new selection"""
         if len(selected) != len(self._initial_reagent_counts):
             raise ValueError(f"selected size {len(selected)} must match number of sites")
             
@@ -278,7 +278,7 @@ class GPUDisallowTracker:
         self._n_sampled += 1
 
     def sample_batch(self, batch_size: int) -> cp.ndarray:
-        \"\"\"Sample multiple combinations in parallel\"\"\"
+        """Sample multiple combinations in parallel"""
         batch_size = int(batch_size)
         if self._n_sampled + batch_size > self._total_product_size:
             raise ValueError("Not enough combinations remaining")
@@ -337,7 +337,7 @@ class GPUDisallowTracker:
         return result
 
     def _get_reagent_exhaust_counts(self) -> dict:
-        \"\"\"Calculate reagent exhaustion counts\"\"\"
+        """Calculate reagent exhaustion counts"""
         s = range(len(self._initial_reagent_counts))
         all_set = set(s)
         power_set = itertools.chain.from_iterable(
