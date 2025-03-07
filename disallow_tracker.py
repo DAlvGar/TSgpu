@@ -184,10 +184,10 @@ class GPUDisallowTracker:
     To_Fill = None
 
     def __init__(self, reagent_counts: list[int]):
-        """
+        \"\"\"
         GPU-compatible version of DisallowTracker
         :param reagent_counts: A list of the number of reagents for each site of diversity in the reaction
-        """
+        \"\"\"
         # Store original counts as integers
         self._initial_reagent_counts = [int(x) for x in reagent_counts]
         # GPU array version for calculations
@@ -207,12 +207,12 @@ class GPUDisallowTracker:
                            for count in self._initial_reagent_counts]
 
     def get_disallowed_selection_mask_batch(self, batch_size: int) -> List[cp.ndarray]:
-        """Returns disallowed reagents for batch processing"""
+        \"\"\"Returns disallowed reagents for batch processing\"\"\"
         batch_size = min(int(batch_size), self._max_batch_size)
         return [mask[:batch_size] for mask in self._batch_masks]
 
     def get_disallowed_selection_mask(self, current_selection: list[Union[int, None]]) -> cp.ndarray:
-        """Returns disallowed reagents for single selection"""
+        \"\"\"Returns disallowed reagents for single selection\"\"\"
         if len(current_selection) != len(self._initial_reagent_counts):
             raise ValueError(f"current_selection must match number of sites: {len(self._initial_reagent_counts)}")
         
@@ -238,13 +238,19 @@ class GPUDisallowTracker:
         for pos, val in fixed_positions.items():
             pair_key = tuple(sorted([pos, to_fill_pos]))
             if pair_key in self._position_pairs_masks:
-                pair_mask = self._position_pairs_masks[pair_key][val]
-                mask = mask | pair_mask
+                # Get the correct mask based on position order
+                if pos < to_fill_pos:
+                    pair_mask = self._position_pairs_masks[pair_key][val]
+                else:
+                    pair_mask = self._position_pairs_masks[pair_key][val].T[to_fill_pos]
+                # Ensure shapes match before combining
+                if pair_mask.shape == mask.shape:
+                    mask = mask | pair_mask
                 
         return mask
 
     def update(self, selected: List[int]) -> None:
-        """Update disallow masks with new selection"""
+        \"\"\"Update disallow masks with new selection\"\"\"
         if len(selected) != len(self._initial_reagent_counts):
             raise ValueError(f"selected size {len(selected)} must match number of sites")
             
@@ -262,16 +268,17 @@ class GPUDisallowTracker:
             for j in range(i + 1, len(selected)):
                 pair_key = (i, j)
                 if pair_key not in self._position_pairs_masks:
-                    self._position_pairs_masks[pair_key] = [
-                        cp.zeros(self._initial_reagent_counts[j], dtype=bool)
-                        for _ in range(self._initial_reagent_counts[i])
-                    ]
-                self._position_pairs_masks[pair_key][selected[i]][selected[j]] = True
+                    # Create 2D mask array for each pair
+                    self._position_pairs_masks[pair_key] = cp.zeros(
+                        (self._initial_reagent_counts[i], self._initial_reagent_counts[j]),
+                        dtype=bool
+                    )
+                self._position_pairs_masks[pair_key][selected[i], selected[j]] = True
                 
         self._n_sampled += 1
 
     def sample_batch(self, batch_size: int) -> cp.ndarray:
-        """Sample multiple combinations in parallel"""
+        \"\"\"Sample multiple combinations in parallel\"\"\"
         batch_size = int(batch_size)
         if self._n_sampled + batch_size > self._total_product_size:
             raise ValueError("Not enough combinations remaining")
@@ -282,49 +289,55 @@ class GPUDisallowTracker:
         # Initialize result array
         result = cp.zeros((batch_size, n_positions), dtype=cp.int32)
         
-        # Generate random selection order for each batch item
-        selection_order = cp.array([
-            cp.random.permutation(n_positions).get()  # Convert to CPU for indexing
-            for _ in range(batch_size)
-        ])
+        # Keep track of used combinations
+        used_combinations = set()
+        current_batch = 0
         
-        # Process each position
-        for pos_idx in range(n_positions):
-            # Get current position for each batch item
-            current_pos = selection_order[:, pos_idx]
+        while current_batch < batch_size:
+            # Generate random selection order
+            selection_order = cp.random.permutation(n_positions)
             
-            # Generate random scores
-            max_reagents = max(self._initial_reagent_counts)
-            scores = cp.random.uniform(
-                size=(batch_size, max_reagents)
-            )
+            # Process each position
+            selected = cp.zeros(n_positions, dtype=cp.int32)
+            valid_selection = True
             
-            # Apply masks
-            for b in range(batch_size):
-                pos = int(current_pos[b])
+            for pos_idx in range(n_positions):
+                pos = int(selection_order[pos_idx])
+                
+                # Generate random scores
+                scores = cp.random.uniform(size=self._initial_reagent_counts[pos])
+                
+                # Apply masks
                 mask = self.get_disallowed_selection_mask(
                     [self.To_Fill if i == pos else 
-                     int(result[b, i]) if i < pos_idx else 
+                     int(selected[i]) if i < pos_idx else 
                      self.Empty for i in range(n_positions)]
                 )
-                scores[b, :len(mask)] = cp.where(mask, -cp.inf, scores[b, :len(mask)])
-                scores[b, len(mask):] = -cp.inf  # Mask out invalid indices
                 
-            # Select best valid option
-            selected = cp.argmax(scores, axis=1)
+                scores = cp.where(mask, -cp.inf, scores)
+                
+                if cp.all(scores == -cp.inf):
+                    valid_selection = False
+                    break
+                    
+                selected[pos] = cp.argmax(scores)
             
-            # Store selections
-            for b in range(batch_size):
-                result[b, int(current_pos[b])] = selected[b]
+            if valid_selection:
+                # Convert to tuple for set operations
+                combination = tuple(selected.get())
+                
+                if combination not in used_combinations:
+                    result[current_batch] = selected
+                    used_combinations.add(combination)
+                    current_batch += 1
+                    
+                    # Update disallow masks
+                    self.update(selected.tolist())
         
-        # Update disallow masks
-        for selections in result:
-            self.update(selections.get().tolist())
-            
         return result
 
     def _get_reagent_exhaust_counts(self) -> dict:
-        """Calculate reagent exhaustion counts"""
+        \"\"\"Calculate reagent exhaustion counts\"\"\"
         s = range(len(self._initial_reagent_counts))
         all_set = set(s)
         power_set = itertools.chain.from_iterable(
