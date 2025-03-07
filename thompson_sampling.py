@@ -10,7 +10,7 @@ from tqdm.auto import tqdm
 import cupy as cp
 from multiprocessing import Pool
 
-from disallow_tracker import DisallowTracker
+from disallow_tracker import DisallowTracker, GPUDisallowTracker
 from reagent import Reagent
 from ts_logger import get_logger
 from ts_utils import read_reagents
@@ -328,9 +328,16 @@ class ThompsonSampler:
 class GPUThompsonSampler(ThompsonSampler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.gpu_rng = cp.random.default_rng()
+        self.gpu_rng_normal = cp.random.normal
         self._fp_cache = {}  # Cache for fingerprints
+        self._disallow_tracker = None  # Will be initialized as GPUDisallowTracker
         
+    def read_reagents(self, reagent_file_list, num_to_select=None):
+        super().read_reagents(reagent_file_list, num_to_select)
+        # Replace CPU tracker with GPU tracker
+        reagent_counts = [len(x) for x in self.reagent_lists]
+        self._disallow_tracker = GPUDisallowTracker(reagent_counts)    
+    
     def _sample_choices_gpu(self, means, stds, mask=None, batch_size=100):
         """Sample multiple choices in parallel on GPU"""
         # Move data to GPU
@@ -338,7 +345,7 @@ class GPUThompsonSampler(ThompsonSampler):
         stds_gpu = cp.asarray(stds)
         
         # Generate samples
-        samples = self.gpu_rng.normal(size=(batch_size, len(means))) * stds_gpu + means_gpu
+        samples = self.gpu_rng_normal(size=(batch_size, len(means))) * stds_gpu + means_gpu
         
         if mask is not None:
             mask_gpu = cp.asarray(mask)

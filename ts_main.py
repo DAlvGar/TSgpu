@@ -162,6 +162,8 @@ def test_gpu_implementation():
         # Test different batch sizes
         for batch_size in batch_sizes:
             logger.info(f"\\nTesting with batch_size={batch_size}")
+            total_time_gpu = 0
+            total_time_cpu = 0
             
             # GPU Test
             try:
@@ -312,7 +314,10 @@ def test_gpu_implementation():
     return results_df, summary
 
 def plot_performance_comparison(results_df):
-    \"\"\"Generate performance comparison plots\"\"\"
+    """Generate performance comparison plots
+    :param results_df: results dataframe
+    :return: None
+    """
     import matplotlib.pyplot as plt
     import seaborn as sns
     
